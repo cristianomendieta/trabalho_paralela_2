@@ -1,3 +1,15 @@
+/*
+ * mppSort - Parallel Sorting Algorithm for GPU
+ * 
+ * Trabalho 2 - CI1009 Programação Paralela com GPUs
+ * UFPR - Universidade Federal do Paraná
+ * 
+ * Autores: Cristiano Mendieta e Thiago Ruiz
+ * Data: Novembro de 2025
+ * 
+ * Implementação do algoritmo mppSort conforme especificação v1.1
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <cuda_runtime.h>

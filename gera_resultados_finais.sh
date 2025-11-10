@@ -1,7 +1,10 @@
 #!/bin/bash
 
-# Script simplificado para gerar resultados CSV
-# Formato compatível com a especificação do trabalho
+# Script para gerar resultados CSV - mppSort
+# Trabalho 2 - CI1009 Programação Paralela com GPUs
+# UFPR - Universidade Federal do Paraná
+# Autores: Cristiano Mendieta e Thiago Ruiz
+# Data: Novembro de 2025
 
 echo "=============================================="
 echo "  Gerando Resultados CSV - mppSort"

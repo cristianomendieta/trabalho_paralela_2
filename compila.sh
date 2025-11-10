@@ -1,7 +1,12 @@
 #!/bin/bash
 
 # Compilation script for mppSort CUDA implementation
-# Based on thrust-sort/compila.sh pattern
+# 
+# Trabalho 2 - CI1009 Programação Paralela com GPUs
+# UFPR - Universidade Federal do Paraná
+# Autores: Cristiano Mendieta e Thiago Ruiz
+# Data: Novembro de 2025
+#
 # Usage: ./compila.sh
 
 if [ "$(hostname)" = "orval" ]; then

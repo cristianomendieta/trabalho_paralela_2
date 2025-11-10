@@ -1,6 +1,11 @@
 # mppSort - GPU Parallel Sorting Implementation
 
-Implementação do algoritmo de ordenação paralela mppSort em GPU usando CUDA, conforme especificado no Trabalho 2 da disciplina CI1009 - Programação Paralela com GPUs.
+**Trabalho 2 - CI1009 Programação Paralela com GPUs**  
+**UFPR - Universidade Federal do Paraná**  
+**Autores:** Cristiano Mendieta e Thiago Ruiz  
+**Data:** Novembro de 2025
+
+Implementação do algoritmo de ordenação paralela mppSort em GPU usando CUDA, conforme especificado no Trabalho 2 da disciplina (versão 1.1).
 
 ## Descrição
 
