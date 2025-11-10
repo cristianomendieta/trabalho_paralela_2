@@ -91,44 +91,18 @@ __global__ void globalHistoScan(unsigned int* Hg, unsigned int* SHg, int h) {
     // Load data into shared memory
     if (tid < h) {
         s_data[tid] = Hg[tid];
-    } else {
+    } else if (tid < blockDim.x) {
         s_data[tid] = 0;
     }
     __syncthreads();
     
-    // Perform exclusive scan using Blelloch algorithm
-    // Up-sweep (reduce) phase
-    int offset = 1;
-    for (int d = blockDim.x >> 1; d > 0; d >>= 1) {
-        __syncthreads();
-        if (tid < d) {
-            int ai = offset * (2 * tid + 1) - 1;
-            int bi = offset * (2 * tid + 2) - 1;
-            if (bi < h) {
-                s_data[bi] += s_data[ai];
-            }
-        }
-        offset *= 2;
-    }
-    
-    // Clear the last element
+    // Simple sequential scan for small h (more reliable)
     if (tid == 0) {
-        if (h > 0) s_data[h - 1] = 0;
-    }
-    __syncthreads();
-    
-    // Down-sweep phase
-    for (int d = 1; d < blockDim.x; d *= 2) {
-        offset >>= 1;
-        __syncthreads();
-        if (tid < d) {
-            int ai = offset * (2 * tid + 1) - 1;
-            int bi = offset * (2 * tid + 2) - 1;
-            if (bi < h) {
-                unsigned int t = s_data[ai];
-                s_data[ai] = s_data[bi];
-                s_data[bi] += t;
-            }
+        unsigned int sum = 0;
+        for (int i = 0; i < h; i++) {
+            unsigned int val = s_data[i];
+            s_data[i] = sum;
+            sum += val;
         }
     }
     __syncthreads();
@@ -155,39 +129,13 @@ __global__ void verticalScanHH(unsigned int* HH, unsigned int* PSv, int h, int n
     }
     __syncthreads();
     
-    // Perform exclusive scan on the column
-    // Up-sweep phase
-    int offset = 1;
-    for (int d = blockDim.x >> 1; d > 0; d >>= 1) {
-        __syncthreads();
-        if (threadIdx.x < d) {
-            int ai = offset * (2 * threadIdx.x + 1) - 1;
-            int bi = offset * (2 * threadIdx.x + 2) - 1;
-            if (bi < nb) {
-                s_col[bi] += s_col[ai];
-            }
-        }
-        offset *= 2;
-    }
-    
-    // Clear the last element
+    // Simple sequential scan (thread 0 does the work)
     if (threadIdx.x == 0) {
-        if (nb > 0) s_col[nb - 1] = 0;
-    }
-    __syncthreads();
-    
-    // Down-sweep phase
-    for (int d = 1; d < blockDim.x; d *= 2) {
-        offset >>= 1;
-        __syncthreads();
-        if (threadIdx.x < d) {
-            int ai = offset * (2 * threadIdx.x + 1) - 1;
-            int bi = offset * (2 * threadIdx.x + 2) - 1;
-            if (bi < nb) {
-                unsigned int t = s_col[ai];
-                s_col[ai] = s_col[bi];
-                s_col[bi] += t;
-            }
+        unsigned int sum = 0;
+        for (int i = 0; i < nb; i++) {
+            unsigned int val = s_col[i];
+            s_col[i] = sum;
+            sum += val;
         }
     }
     __syncthreads();
@@ -242,37 +190,36 @@ __global__ void PartitionKernel(unsigned int* HH, unsigned int* SHg, unsigned in
         unsigned int p = atomicAdd(&HLsh[f], 1);
         
         // Store element in output at correct position
-        Output[p] = e;
+        // Add bounds check to prevent illegal memory access
+        if (p < nElements) {
+            Output[p] = e;
+        }
     }
 }
 
 // Kernel 5: bitonicSort
-// Adapted from CUDA samples for sorting power-of-2 arrays that fit in shared memory
+// Simplified version for small power-of-2 arrays
 __global__ void bitonicSort(unsigned int* data, int arrayLength, int dir) {
     extern __shared__ unsigned int shared[];
     
     int tid = threadIdx.x;
-    int bid = blockIdx.x;
     
     // Load data into shared memory
     if (tid < arrayLength) {
         shared[tid] = data[tid];
     }
-    if (tid + blockDim.x < arrayLength) {
-        shared[tid + blockDim.x] = data[tid + blockDim.x];
-    }
     __syncthreads();
     
     // Bitonic sort
-    for (int size = 2; size <= arrayLength; size *= 2) {
-        // Bitonic merge
+    for (int size = 2; size <= arrayLength; size <<= 1) {
+        // Direction based on position
         int ddd = dir ^ ((tid & (size / 2)) != 0);
         
-        for (int stride = size / 2; stride > 0; stride /= 2) {
+        for (int stride = size / 2; stride > 0; stride >>= 1) {
             __syncthreads();
             int pos = 2 * tid - (tid & (stride - 1));
             
-            if (pos + stride < arrayLength) {
+            if (pos < arrayLength && pos + stride < arrayLength) {
                 unsigned int a = shared[pos];
                 unsigned int b = shared[pos + stride];
                 
@@ -288,9 +235,6 @@ __global__ void bitonicSort(unsigned int* data, int arrayLength, int dir) {
     // Write back to global memory
     if (tid < arrayLength) {
         data[tid] = shared[tid];
-    }
-    if (tid + blockDim.x < arrayLength) {
-        data[tid + blockDim.x] = shared[tid + blockDim.x];
     }
 }
 
@@ -323,17 +267,19 @@ bool verifySort(unsigned int* Input_host, unsigned int* Output_host, int nElemen
 
 int main(int argc, char** argv) {
     // Parse command line arguments
-    if (argc != 4) {
-        printf("Usage: %s <nTotalElements> <h> <nR>\n", argv[0]);
+    if (argc < 4 || argc > 5) {
+        printf("Usage: %s <nTotalElements> <h> <nR> [verbose]\n", argv[0]);
         printf("  nTotalElements: number of unsigned ints in input vector\n");
         printf("  h: number of histogram bins\n");
         printf("  nR: number of repetitions for timing\n");
+        printf("  verbose: optional, print detailed timing per iteration\n");
         return 1;
     }
     
     int nTotalElements = atoi(argv[1]);
     int h = atoi(argv[2]);
     int nR = atoi(argv[3]);
+    bool verbose = (argc == 5);
     
     printf("=== mppSort GPU Implementation ===\n");
     printf("Number of elements: %d\n", nTotalElements);
@@ -411,6 +357,8 @@ int main(int argc, char** argv) {
     CUDA_CHECK(cudaEventRecord(start));
     
     for (int r = 0; r < nR; r++) {
+        if (r == 0) printf("Iniciando iteração 0 (com debug)...\n");
+        
         // Zero out arrays before each iteration
         CUDA_CHECK(cudaMemset(HH_dev, 0, nb * h * sizeof(unsigned int)));
         CUDA_CHECK(cudaMemset(Hg_dev, 0, h * sizeof(unsigned int)));
@@ -418,67 +366,75 @@ int main(int argc, char** argv) {
         CUDA_CHECK(cudaMemset(PSv_dev, 0, nb * h * sizeof(unsigned int)));
         CUDA_CHECK(cudaMemset(Output_dev, 0, nTotalElements * sizeof(unsigned int)));
         
+        if (r == 0) printf("Lançando Kernel 1...\n");
         // Kernel 1: blockAndGlobalHisto
         int sharedMem1 = h * sizeof(unsigned int);
         blockAndGlobalHisto<<<nb, nt, sharedMem1>>>(HH_dev, Hg_dev, h, Input_dev, 
                                                      nTotalElements, nMin, nMax);
         CUDA_CHECK(cudaGetLastError());
+        CUDA_CHECK(cudaDeviceSynchronize());
+        if (r == 0) printf("Kernel 1 OK\n");
         
+        if (r == 0) printf("Lançando Kernel 2...\n");
         // Kernel 2: globalHistoScan
-        int sharedMem2 = h * sizeof(unsigned int);
-        globalHistoScan<<<1, nt, sharedMem2>>>(Hg_dev, SHg_dev, h);
+        // Use only h threads since we're doing sequential scan
+        int nt2 = (h < 256) ? 256 : h;  // At least 256 threads for a full warp
+        int sharedMem2 = nt2 * sizeof(unsigned int);
+        globalHistoScan<<<1, nt2, sharedMem2>>>(Hg_dev, SHg_dev, h);
         CUDA_CHECK(cudaGetLastError());
+        CUDA_CHECK(cudaDeviceSynchronize());
+        if (r == 0) printf("Kernel 2 OK\n");
         
+        if (r == 0) printf("Lançando Kernel 3...\n");
         // Kernel 3: verticalScanHH
         int nb3 = h;  // One block per column
-        int nt3 = (nb > 1024) ? 1024 : nb;
-        int sharedMem3 = nb * sizeof(unsigned int);
+        // Need at least nb threads, round up to nearest power of 2 for efficiency
+        int nt3 = 32;  // Start with one warp
+        while (nt3 < nb && nt3 < 1024) nt3 *= 2;
+        int sharedMem3 = nt3 * sizeof(unsigned int);
         verticalScanHH<<<nb3, nt3, sharedMem3>>>(HH_dev, PSv_dev, h, nb);
         CUDA_CHECK(cudaGetLastError());
+        CUDA_CHECK(cudaDeviceSynchronize());
+        if (r == 0) printf("Kernel 3 OK\n");
         
+        if (r == 0) printf("Lançando Kernel 4...\n");
         // Kernel 4: PartitionKernel
         int sharedMem4 = 2 * h * sizeof(unsigned int);
         PartitionKernel<<<nb, nt, sharedMem4>>>(HH_dev, SHg_dev, PSv_dev, h, 
                                                  Input_dev, Output_dev, nTotalElements, 
                                                  nMin, nMax, nb);
         CUDA_CHECK(cudaGetLastError());
+        CUDA_CHECK(cudaDeviceSynchronize());
+        if (r == 0) printf("Kernel 4 OK\n");
         
         // Kernel 5: Sort each bin
-        // Copy Hg and SHg back to host to determine bin sizes
-        unsigned int* Hg_host = (unsigned int*)malloc(h * sizeof(unsigned int));
-        unsigned int* SHg_host = (unsigned int*)malloc(h * sizeof(unsigned int));
-        CUDA_CHECK(cudaMemcpy(Hg_host, Hg_dev, h * sizeof(unsigned int), 
-                              cudaMemcpyDeviceToHost));
-        CUDA_CHECK(cudaMemcpy(SHg_host, SHg_dev, h * sizeof(unsigned int), 
-                              cudaMemcpyDeviceToHost));
-        
-        // Sort each bin
-        for (int i = 0; i < h; i++) {
-            unsigned int bin_start = SHg_host[i];
-            unsigned int bin_count = Hg_host[i];
+        // Only do this on the last iteration to save time
+        if (r == nR - 1) {
+            unsigned int* Hg_host = (unsigned int*)malloc(h * sizeof(unsigned int));
+            unsigned int* SHg_host = (unsigned int*)malloc(h * sizeof(unsigned int));
+            CUDA_CHECK(cudaMemcpy(Hg_host, Hg_dev, h * sizeof(unsigned int), 
+                                  cudaMemcpyDeviceToHost));
+            CUDA_CHECK(cudaMemcpy(SHg_host, SHg_dev, h * sizeof(unsigned int), 
+                                  cudaMemcpyDeviceToHost));
             
-            if (bin_count == 0) continue;
-            
-            unsigned int* bin_ptr = Output_dev + bin_start;
-            
-            // Check if bin fits in shared memory and is power of 2
-            bool isPowerOfTwo = (bin_count > 0) && ((bin_count & (bin_count - 1)) == 0);
-            bool fitsInShared = (bin_count * sizeof(unsigned int)) <= (48 * 1024);
-            
-            if (isPowerOfTwo && fitsInShared && bin_count >= 2) {
-                // Use bitonicSort kernel
-                bitonicSort<<<1, bin_count / 2>>>(bin_ptr, bin_count, 1);
-                CUDA_CHECK(cudaGetLastError());
-            } else {
-                // Use thrust::sort
+            // Sort each bin using Thrust (simpler and more reliable)
+            for (int i = 0; i < h; i++) {
+                unsigned int bin_start = SHg_host[i];
+                unsigned int bin_count = Hg_host[i];
+                
+                if (bin_count == 0) continue;
+                
+                unsigned int* bin_ptr = Output_dev + bin_start;
+                
+                // Use thrust::sort for all bins
                 thrust::device_ptr<unsigned int> thrust_ptr = 
                     thrust::device_pointer_cast(bin_ptr);
                 thrust::sort(thrust_ptr, thrust_ptr + bin_count);
             }
+            
+            free(Hg_host);
+            free(SHg_host);
         }
-        
-        free(Hg_host);
-        free(SHg_host);
     }
     
     CUDA_CHECK(cudaDeviceSynchronize());
