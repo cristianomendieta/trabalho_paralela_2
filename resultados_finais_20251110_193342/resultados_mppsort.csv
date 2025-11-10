@@ -1,0 +1,17 @@
+# Resultados Experimentais - mppSort GPU
+# Trabalho 2 - CI1009 Programacao Paralela com GPUs
+# Data: seg 10 nov 2025 19:33:43 -03
+# GPU: NVIDIA GeForce GTX 750 Ti
+NVIDIA GeForce GTX 750 Ti
+# Parametros: h=256 bins, nR=10 repeticoes, nb=10 blocos, nt=1024 threads/bloco
+# M = 10^6 (conforme especificacao)
+
+Nro_Elementos,Vazao_mppSort_GElements_s,Vazao_Thrust_GElements_s,Speedup,Tempo_Medio_ms,Blocos,Threads_Bloco
+1000000,0.447,0.270,0.60x,2.235
+3.707,10,1024
+2000000,0.307,0.285,0.93x,6.513
+7.017,10,1024
+4000000,0.432,0.276,0.64x,9.268
+14.517,10,1024
+8000000,0.539,0.305,0.56x,14.841
+26.268,10,1024

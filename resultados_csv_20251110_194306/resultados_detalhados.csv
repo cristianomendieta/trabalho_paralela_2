@@ -1,0 +1,26 @@
+# Resultados Experimentais - mppSort
+# Data: seg 10 nov 2025 19:43:07 -03
+# GPU: NVIDIA GeForce GTX 750 Ti
+NVIDIA GeForce GTX 750 Ti
+# Parametros: h=256 bins, nR=10 repeticoes, nb=10 blocos, nt=1024 threads/bloco
+
+
+Executando,10,vezes,com,1000000,elementos,256,bins,10,blocos,1024,threads
+mppSort,Tempo_Medio_ms,Throughput_GElements_s,Thrust_Throughput_GElements_s,Speedup
+Resultados,2.246
+3.928,0.445,0.255,0.57x
+
+Executando,10,vezes,com,2000000,elementos,256,bins,10,blocos,1024,threads
+mppSort,Tempo_Medio_ms,Throughput_GElements_s,Thrust_Throughput_GElements_s,Speedup
+Resultados,6.556
+7.024,0.305,0.285,0.93x
+
+Executando,10,vezes,com,4000000,elementos,256,bins,10,blocos,1024,threads
+mppSort,Tempo_Medio_ms,Throughput_GElements_s,Thrust_Throughput_GElements_s,Speedup
+Resultados,9.045
+14.307,0.442,0.280,0.63x
+
+Executando,10,vezes,com,8000000,elementos,256,bins,10,blocos,1024,threads
+mppSort,Tempo_Medio_ms,Throughput_GElements_s,Thrust_Throughput_GElements_s,Speedup
+Resultados,14.809
+26.403,0.540,0.303,0.56x

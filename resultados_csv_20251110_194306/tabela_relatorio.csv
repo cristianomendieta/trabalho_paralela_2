@@ -1,0 +1,7 @@
+# Tabela de Resultados - Formato Especificacao
+# Comparacao mppSort vs Thrust
+Nro_Elementos,Vazao_mppSort_GElements_s,Vazao_Thrust_GElements_s,Aceleracao_mppSort_Thrust
+1000000,0.445,0.255,0.57x
+2000000,0.305,0.285,0.93x
+4000000,0.442,0.280,0.63x
+8000000,0.540,0.303,0.56x

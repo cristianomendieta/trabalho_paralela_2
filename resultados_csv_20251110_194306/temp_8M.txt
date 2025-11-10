@@ -1,0 +1,37 @@
+=== mppSort GPU Implementation ===
+Number of elements: 8000000
+Number of bins (h): 256
+Number of repetitions: 10
+
+Data interval [nMin, nMax]: [1, 4294966803]
+Bin width (L): 16777214
+
+Device: NVIDIA GeForce GTX 750 Ti
+Number of SMs: 5
+Number of blocks (nb): 10
+Threads per block (nt): 1024
+
+Iniciando iteração 0 (com debug)...
+Lançando Kernel 1...
+Kernel 1 OK
+Lançando Kernel 2...
+Kernel 2 OK
+Lançando Kernel 3...
+Kernel 3 OK
+Lançando Kernel 4...
+Kernel 4 OK
+=== Performance Results (mppSort) ===
+Total time for 10 iterations: 148.086 ms
+Average time per iteration: 14.809 ms
+Throughput: 0.540 GElements/s
+
+=== Performance Results (Thrust) ===
+Total time for 10 iterations: 264.029 ms
+Average time per iteration: 26.403 ms
+Throughput: 0.303 GElements/s
+
+=== Speedup ===
+mppSort vs Thrust: 0.56x
+
+=== Verification ===
+Ordenação correta!
