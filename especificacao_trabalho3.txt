@@ -1,0 +1,145 @@
+ci1009  - PROGRAMAÇÃO PARALELA COM GPUs- 
+2o semestre de 2025   
+(c) W.Zola/UFPR
+
+Trab 3: 
+   ParteA)
+   - re-implementar o kernel blockBitonicSort e comparar
+   com o thrust para ordenar o total de elementos
+   -colocar esse kernel em um programa separado
+     chamado segmented-sort-bitonic.c para testar
+     o desempenho, o prof poderá fornecer
+     um programa esqueleto para voce colocar o seu kernel
+     
+   ParteB)  
+   - tirar os erros do seu mppSort em GPU
+   versão paralela CUDA para algoritmo mppSort
+   tentando se aproximar do desempenho do thrust sort
+   FAZER ISSO SEGUINDO a especificaçao do Trab 2
+   com pequenas alteracoes que poderemos considerar aqui
+   usar seu NOVO kernel blockBitonicSort da parte A
+   
+A idéia da parte B desse trabalho é baseada no algoritmo mppSort (multicore CPUs)
+
+Cordeiro, M. B. ; BLANCO, R. M. ; NUNAN ZOLA, WAGNER M. 
+"Algoritmo Paralelo Eficiente para Ordenação Chave-Valor". 
+XL Simpósio Brasileiro de Bancos de Dados (SBBD 2025), 2025
+
+----------------------------------
+Histórico:
+- v1.0 a versão inicial
+            
+----------------------------------  
+Data da apresentação inicial/enunciado: 17/nov/25  
+          (o trabalho foi apresentado em sala,
+           e discutimos as idéias sobre o mesmo)
+Data da entrega: 27/nov/2025 (sao 10 dias!)
+
+Você pode fazer sozinho OU em dupla.
+NÃO serão aceitos trabalhos com mais de 2 alunos.
+---------------------------------
+
+Objetivos: 
+//    
+ ParteA)
+   - re-implementar o kernel blockBitonicSort e comparar
+   com o thrust para ordenar o total de elementos
+  -colocar esse kernel em um programa separado
+     chamado segmented-sort-bitonic.c para testar
+     o desempenho, o prof poderá fornecer
+     um programa esqueleto para voce colocar o seu kernel
+   
+ ParteB)  
+   
+   - tirar os erros do seu mppSort em GPU
+   versão paralela CUDA para algoritmo mppSort
+   tentando se aproximar do desempenho do thrust sort
+   FAZER ISSO SEGUINDO a especificaçao do Trab 2
+      com pequenas alteracoes que poderemos considerar aqui
+         usar seu NOVO kernel blockBitonicSort da parte A
+   
+Sobre a parte A)
+O seu NOVO kernel blockBitonicSort deve ter (ESTRITAMENTE)
+a seguite interface:
+void segmentedBitonicSort(
+    uint *d_Key,
+    uint *d_Offsets,
+    uint *d_Sizes,
+    uint num_segments,
+    uint dir );
+
+O programa a ser usado para testar seu kernel    blockBitonicSort
+deve ter a seguite interface na linha de comando
+ Usage: segmented-sort-bitonic -n <total_elements> -segRange <min_seg> <max_seg>
+ ou
+ Usage: segmented-sort-bitonic -n <total_elements> -ns <numberOfSegments>
+ 
+
+Temos exemplos desse programa rodando em uma outra GPU ao final deste texto. 
+
+Sobre a parte B)
+- veremos alguns problemas encontrados
+  no trab 2
+  
+ Sobre os experimentos
+ - Adicionaremos AQUI a descricao dos experimentos
+   a serem apresentados tanro da parte A quanto da parte B
+   
+
+//    Relatorio e experimentos    
+      -------------------------
+//
+//    - Voce deve entregar um relatorio em PDF
+//      Descreva o melhor que puder o trabalho
+//      tente explicar o funcionamento
+//    - Inclua uma tabela de vazao de ordenaçao
+//      comparando a ordenacao com 
+//      o mppSort e com o thrust sort rodando sozinho
+//      em todo o vetor de entrada
+//      indique na tabela a aceleracao de mppSort
+//      em relacao ao thrust 
+//    - Experimentos:
+//      faca medidas para 1M, 2M, 4M e 8M elementos (no minimo)
+//      obs M = 10^6 (NAO FACA potencias de 2)
+//    - Reporte a vazao em GElementos/s ordenados 
+//    - NAO precisa graficos, somente TABELA
+
+// Exemplos de execuçao do segmented-sort-bitonic em uma certa GPU Ampere
+
+./segmented-sort-bitonic -n 8000000 -segRange 20 4000
+Number of segments Generated:3974
+Segmented Bitonic Sort (Out-of-Place):
+Time taken: 0.0013015 seconds
+Throughput: 6.14674 GEls/s
+Thrust Sort:
+Time taken: 0.00175306 seconds
+Throughput: 4.56346 GEls/s
+Speedup (Thrust time / segmented-bitonic time): 1.34695x
+Verification (Bitonic Out-of-Place): All segments sorted correctly.
+Verification (Thrust): Entire array sorted correctly.
+
+$ ./segmented-sort-bitonic -n 8000000 -segRange 3000 4000
+Number of segments Generated:2292
+Segmented Bitonic Sort (Out-of-Place):
+Time taken: 0.00113152 seconds
+Throughput: 7.07014 GEls/s
+Thrust Sort:
+Time taken: 0.00177357 seconds
+Throughput: 4.51068 GEls/s
+Speedup (Thrust time / segmented-bitonic time): 1.56742x
+Verification (Bitonic Out-of-Place): All segments sorted correctly.
+Verification (Thrust): Entire array sorted correctly.
+
+./segmented-sort-bitonic -n 8000000 -segRange 20 8000
+Number of segments Generated:1957
+Segmented Bitonic Sort (Out-of-Place):
+Time taken: 0.00148685 seconds
+Throughput: 5.38051 GEls/s
+Thrust Sort:
+Time taken: 0.00175923 seconds
+Throughput: 4.54744 GEls/s
+Speedup (Thrust time / segmented-bitonic time): 1.1832x
+Verification (Bitonic Out-of-Place): All segments sorted correctly.
+Verification (Thrust): Entire array sorted correctly.
+
+

@@ -1,0 +1,422 @@
+ci1009  - PROGRAMAÇÃO PARALELA COM GPUs- 
+2o semestre de 2025   
+(c) W.Zola/UFPR
+
+Trab 2: mppSort em GPU
+   versão paralela CUDA para algoritmo mppSort
+   
+A idéia desse trabalho é baseada no algoritmo mppSort (multicore CPUs)
+
+Cordeiro, M. B. ; BLANCO, R. M. ; NUNAN ZOLA, WAGNER M. 
+"Algoritmo Paralelo Eficiente para Ordenação Chave-Valor". 
+XL Simpósio Brasileiro de Bancos de Dados (SBBD 2025), 2025
+
+----------------------------------
+Histórico:
+- v1.0 a versão inicial
+- v1.1 algumas adicoes de alteracoes
+            
+----------------------------------  
+Data da apresentação inicial/enunciado: 27/out/25  
+          (o trabalho foi apresentado em sala,
+           e discutimos as idéias sobre o mesmo)
+Data da entrega: 12/nov/2025 (sao 16 dias!)
+
+Você pode fazer sozinho OU em dupla.
+NÃO serão aceitos trabalhos com mais de 2 alunos.
+---------------------------------
+
+Objetivos: 
+// Obter uma implementação paralela eficiente 
+//   para um algoritmo de ordenacao mppSort
+//   em GPU usando CUDA
+//
+// O algoritmo descrito será uma versão simplificada e ,
+//  não é, necessariamente,
+//  um algoritmo altamente eficiente, mas
+//  alguns dos passos emprega técnicas usadas
+//  em algoritmos mais "realisticos".
+// A implementaçao segue passos e conceitos 
+//  vistos no curso como:
+//  histogramas, 
+//  soma de prefixos,
+//  etc
+
+// dadas as ideias para kernels de histogramas,
+// e soma de prefixos e outras tecnicas como
+// privatizacao, acesso coalecido, atomicos, etc
+//   vistas nos slides gostariamos de obter 
+// nosso algoritmo mpps para ordenacao
+
+// Podemos definir o problema da 
+//   seguinte maneira:
+// 
+//   Dado um vetor V de n elementos INTEIROS SEM SINAL, 
+//   podemos percorrer esse vetor e obter o dominio
+//   desse conjunto de numeros, digamos [Nmin,Nmax]
+
+//   De posse desse intervalo [Nmin,Nmax] queremos dividir
+//   esse intervalo em h subintervalos de "mesma largura" 
+//   (i.e. mesma amplitude)
+
+//   Para cada subintervalo gostariamos de obter
+//   a frequencia de numeros em V para cada um dos subintervalos.
+
+//   Vamos representar essas frequencias por um vetor H de inteiros
+//   (o vetor H tem h numeros inteiros).
+//   Cada posição H[i] deve conter a frequencia de numeros
+//   no subintervalo i
+
+//   Vamos fazer, pelo menos 3 kernels
+
+//   blocksHistoAndScan
+//    esse kernel deve ler o vetor de entrada e produzir
+//  -  um histograma por bloco de threads
+//     Se temos NB blocos de threads,  cada bloco de thread
+//     deve fazer o histograma para |V|/NB elementos de V
+//  -  deve tambem produzir um vetor com Exclusive prefix Sum (Scan)
+//     para CADA histograma
+//   
+
+Kernel 1:
+//   a chamada desse kernel deve ser:
+//       blockAndGlobalHisto<<nb,nt>>( HH, Hg, h, Input, nElements, nMin, nMax ); 
+//       onde:
+//          nb = numero de blocos de threads (fazer nb=NP*2)
+//          nt = numero de threads por bloco  (fazer nt=1024 para ESSA GPU)
+//          HH  = matriz de saida (um histograma por linha) com h colunas
+//                  e nb linhas (ou seja, sao nb histogramas)
+//          Hg  = vetor Histograma global 1 linha apenas, com h colunas    (v2.0 mudou aqui)
+//                pode ser obtido ao final do bloco assim:
+//                Cada indice do histograma do bloco é incrementado
+                  na mesma posicao em Hg
+                  --> ao final temos o Histograma global
+                      que equivale ao numero de elementos 
+                      que devera ter cada faixa no vetor de saida (ordenado)
+//          h  = numero de colunas do histograma (que eh o numero de faixas)
+//                  pode ser um vetor de unsigned int
+//          Input  vetor de entrada (vetor de unsigned ints)
+//          nElements número de elementos no vetor de entrada
+//
+//          nMin, nMax sao os valores mínimos e maximos presentes
+//                no vetor Input
+//                assim esses dois valores podem ser previamente
+//                calculados por outro kernel OU, no nosso caso,
+//                pode ser calculado pelo programa na CPU jã que este
+//                gerou os números
+
+Kernel 2:
+//   globalHistoScan                                      (v1.0)
+//    - esse kernel deve produzir APENAS um histograma 
+//    para todos os elementos de do vetor de entrada
+//    - esse kernel deve ser invocado depois do anterior
+//      pois usa o vetor Hg
+//    - esse kernel faz APENAS o seguinte:
+//      toma o vetor Hg (histogram global)
+        e produz o vetor SHg (Scan do Histograma Global)
+        ou seja, Scan == Soma de prefixos
+//      Assim, o que eh SHg ?
+//       SHg conterá a posicao inicial de cada faixa
+         no vetor de saida (ordenado)
+//   a chamada desse kernel deve ser:
+//       globalHistoScan<<1,nt>>( Hg, SHg, h ); 
+//       onde:
+//          1 = numero de blocos de threads (apenas 1 é suficiente
+                pois Hg tem h colunas e cabe em shared memory
+//          nt = numero de threads por bloco  (fazer o maximo por bloco
+                                                nt=1024 para ESSA GPU)
+//          Entrada:
+//             Hg  = vetor Histograma global (produzido anteriormente)                                                
+//          Saida:
+//             SHg = Scan do Histograma Global   
+                     (ou seja, Scan == Soma de prefixos)
+                     mais precisamente e SIMPLESMENTE
+                     SHg = Scan de Hg                                             
+
+Kernel 3:
+//  v1.1  esse kernel apareceu na versao 1.0
+//        (tinha essa funcionalidade antes, MAS
+//         nao era separada em um kernel unico)
+//           
+//   verticalScanHH
+//   - faz o vertical Scan (por coluna) de HH
+//     ou seja
+//     para cada coluna
+//     deve fazer a soma de prefixos da coluna
+//   - note que a linha 0 fica zerada
+//     pois eh inserido o elemento neutro (0) da soma
+//
+//   a chamada desse kernel deve ser:
+//       verticalScanHH<<nb3,nt3>>( Hg, PSv, h ); 
+//       onde:
+//          nb3 = numero de blocos de threads do kernel 3
+//          nt3 = numero de threads por bloco  (
+                  acho que pode fazer o maximo por bloco
+                  nt=1024 para ESSA GPU, ou algum outro valor
+                  caso seja mais eficiente
+                  (estou apenas deixando em aberto isso
+                   nao pensei se pode ou nao ser melhor, 
+                   para esse kernel!)
+//          Entrada:
+//            HH  = matriz com um histograma por linha (com h colunas)
+//                  e nb linhas (ou seja, sao nb histogramas,
+//                  um por bloco)                                                
+//          Saida:
+//            PSv = Soma de prefixos vertical (por coluna)
+//
+//        ou seja esse kernel faz:
+//          para cada coluna c de HH
+//          produz sua soma de prefixos
+//          na coluna c de PSv 
+
+Kernel 4:                    
+//   Partition
+//    esse kernel deve ler o vetores e matrizes necessarios e
+//    produzir um vetor ordenado por faixa 
+//    dos numeros do vetor de entrada
+//    
+//    para fazer esse algoritmo,
+//    o mpp Sort deve iniciar fazendo o particionamento dos dados
+//    de entrada no vetor de saida
+//
+//    Para particionar, voce deve usar os vetores HH e PSv   (v1.1, mudou aqui)
+//    que sao vetores auxiliares para posicionar
+//    os numeros de entrada em ordem de faixas
+//    assim o vetor contera' numeros corretos em ordem, por faixa
+//    nesse ponto, ao final desse kernel,
+//    dentro de cada faixa nao estára ordenado
+//    mas estarah por faixa
+
+//    depois de executar esse kernel podemos passar ao proximo kernel
+//    que deve ordenar cada faixa do vetor de saida com o kernel
+//    blockBitonicSort para as faixas que cabem dentro da shared memory
+//    de cada bloco de threads (48KB)
+//
+//    Ao final, alguns blocos que NAO cabem em shared memory,
+//    vamos ordenar chamando kernels thrust para ordena-los inplace.
+
+// IMPORTANTE:
+//   para fazer o Partition_kernel voce vai precisar dos 
+//   vetores HH, SHg e PSv                         (v1.1 mudou aqui)
+//   usar esse vetores/matrizes auxiliares para
+     fazer ATOMICOS em SHARED memory               (v1.1 mudou aqui)
+//   e particionar (colocar) elementos no vetor de saida de forma
+//   PARALELA e EFICIENTE
+//   (ver slides de Soma de Prefixos, 
+//        aplicacoes da soma de prefixos: 
+//        - corte de sandwiches, 
+//        - alocacoes, etc)
+//     Acho que eh necessario uso de atomicos com seus vetores auxiliares
+//        
+//
+//   a chamada desse kernel deve ser:       (v1.1 mudou a interface do kernel)
+//       PartitionKernel<<nb,nt>>( HH, SHg, PSv, h, Input, Output, nElements, nMin, nMax ); 
+//       onde:
+//          nb = numero de blocos de threads (fazer nb=NP*2)
+//          nt = numero de threads por bloco  (fazer nt=1024 para ESSA GPU)
+//          HH  = matriz com um histograma por linha (com h colunas) (v2.0 mudou aqui)
+//                  e nb linhas (ou seja, sao nb histogramas,
+//                  um por bloco)                            
+//          SHg = Scan do Histograma Global (v2.0 mudou aqui)                    
+//          PSv = Soma de prefixos vertical (por coluna) (v2.0 mudou aqui)
+//          h  = numero de colunas do histograma (que eh o numero de faixas)
+//                  pode ser um vetor de unsigned int
+//          Input  vetor de entrada (vetor de unsigned ints)
+//          Output  vetor de saida (vetor de unsigned ints)
+//          nElements número de elementos no vetor de entrada e no de saida
+//
+//          nMin, nMax sao os valores mínimos e maximos presentes
+//                no vetor Input
+//                assim esses dois valores podem ser previamente
+//                calculados por outro kernel OU, no nosso caso,
+//                pode ser calculado pelo programa na CPU jã que este
+//                gerou os números
+//
+// COMO implementar esse kernel: (v1.1, essa descricao eh nova)
+// Cada bloco com block_id=b de threads 
+//    busca o histograma da linha b de PSv e coloca em SHARED memory
+//    vamos shamar esse vetor de 
+//      Histograma por Linha em shared (HLsh)
+// Cada thread do bloco soma:
+//     a coluna c de SHg com a mesma coluna de HLsh
+// Depois disso o que tem em HLsh ?
+// R: tem a posicao inicial de cada faixa 
+//     onde o bloco vai colocar elementos na faixa
+// Como ele coloca ?
+// Cada thread: 
+//   - Le (colalesced) o elemento "e" da entrada Input
+//   - descobre em que faixa f vai colocar
+//   - faz um atomico na posicao f de HLsh
+//     o numero retornado p retornado do atomico 
+//       é a posicao onde vai posicionar o elemento "e"
+//   - Armazena em Output
+//       ou seja:   Output[p] = e;
+//   Pronto! o elemente "e" estah na faixa certa!
+//            apenas nao estah em ordem dentro da faixa
+
+Kernel 5:
+//   blockBitonicSort
+//    - esse kernel deve ordenar numeros que cabem em shared memory
+//    - vamos usar o bitonic Sort que já está em cuda Samples
+//      na maquina nv00 estah no diretorio: 
+
+        /usr/local/cuda/cuda-samples/Samples/2_Concepts_and_Techniques/sortingNetworks
+
+//    - voce deve pegar o kernel de bitonic sort por bloco desse arquivo
+//      e importar (somente esse kernel) para seu trabalho
+//      fazendo as adaptacoes necessarias para ordenar as faixa
+//      de numeros do vetor de saida que cabem em shared memory
+//
+
+// Entrada para o algoritmo de ornenacao 
+//   (main, que ativa os varios kernels, inclusive thrust)
+//        
+//   - Trabalharemos com um vetor de entrada Input,
+//       de valores UNSIGNED INT (32 bits)
+//   - Esse vetor de entrada deve ser preenchido com valores
+//   (pseudo)-aleatórios conforme descrição abaixo.
+
+// Funcionamento:
+//  O programa deve funcionar para 
+//   nTotalElements e achar os h histogramas por blocos
+//   bem como o histograma global, particionar no vetor de saida,
+//   e ordenar o vetor de saida com block bitonic sort e thrust
+
+// IMPORTANTE:
+//  Fazer uma FUNCAO verifySort, para verificar se o resultado
+//  da sua ordenacao corresponde a ordem correta
+//  para tal:
+//  - Use thrust para ordenar o vetor de entrada produzindo 
+//    um vetor de saida Auxiliar
+//  - Compare se o seu vetor de saida corresponde ao vetor
+//    Auxiliar ordenado por thrust
+//  - retornar true se for igual, false caso contrario
+//  - o main deve chamar a funcao verifySort e imprimir
+//    se foi ou nao uma ordenacao correta
+
+//   SENDO: nTotalElements etc 
+//          obtidos da linha de comando
+//  
+//  Utilização do programa:
+//  usage: ./mppSort <nTotalElements> h 
+//  onde:
+//          <nTotalElements> e' o número de unsigned ints do vetor de entrada
+//          h                e' o número de faixas do histograma
+//          nR               número de Repeticoes, ou seja,
+//                             quantas vezes é chamado cada kernel
+//                             e medindo a média de tempo gasto por cada kernel.
+//                             assim é possivel aumentar a precisao de medidas
+//                             aplicando sincronizaçao antes e depois da repeticao
+//                             do kernel. (fazer medidas independentes por kernel)
+//                             a repeticao pode ser feita com o mesmo vetor de entrada
+//                             SEM gerar novo a cada iteracao 
+
+// a saida do algoritmo pode ser na memoria global da GPU mesmo
+// NAO é necessario enviar a CPU,
+// a nao ser que precise disso lah para fazer a comparacao final
+
+// Os kernels devem produzir tambem como saida,
+//   alem do vetor com histograma, quais foram os valores mínimos e maximos
+//   encontrados no vetor de entrada e qual foi a largura calculada de cada faixa
+
+O programa deve obter da gpu qual foi o intervalo de números [nMin, nMax]
+encontrados no vetor de entrada e reportar esse intervalo na tela,
+reportando TAMBEM na tela qual é a largura de cada faixa
+(note que todas as faixas tem a mesma largura)
+   L = (nMax - Min) / h
+reportando TAMBEM a vazao da sua ORDENACAO mpps,
+ou seja, todos os kernels que participaram da ordenacao
+tem seus tempos somados para se obter a vazao.
+
+
+// ENTRADA para o algoritmo:
+// Esse conjunto de entrada, deve ser chamado Input
+//
+// Para esse trabalho o conjunto de valores de entrada 
+// NÃO será lido, 
+//   - o conjunto será preenchido sequencialmente 
+//     pela função main
+//   - a inicializaçao do conjunto de entrada (em main)
+//     deve ser feita no host (CPU) e enviada para a GPU
+//
+//   // initialize Input vector
+     unsigned int Input[MAX_SIZE];
+     int inputSize = 0;
+     for( int i = 0; i < nTotalElements; i++ ){
+     
+	int a = rand();  // Returns a pseudo-random integer
+	                 //    between 0 and RAND_MAX.
+	int b = rand();  // same as above
+	
+	unsigned int v = a * 100 + b;
+
+        // inserir o valor v na posição i
+	Input[ i ] = (unsigned int) v;
+     }
+     inputSize = nTotalElements;
+     
+// Note que: ao final da inicialização acima, 
+//    o vetor Input deve conter nTotalElements unsigned ints
+// ou seja, inputSize deve ser igual a nTotalElements    
+
+
+ESCLARECIMENTOS sobre os kernels
+--------------------------------
+Em caso de dúvidas voce pode consultar os
+SLIDES sobre historamas
+
+//   blockAndGlobalHisto   (nome corrigido na v1.1)
+
+         Este kernel DEVE usar shared memory para ficar mais rapido
+         e escrever em HH e Hg (na global memory) SOMENTE no finalzinho
+         do kernel, ANTES de terminar
+         
+//   globalHistoAndScan     (nome corrigido na v1.1)
+
+         Este kernel DEVE usar shared memory para ficar mais rapido
+         e escrever em SHg (na global memory) SOMENTE no finalzinho
+         do kernel, ANTES de terminar
+         
+//   verticalScanHH                   (explicacao adicionada na v1.1)
+
+         Este kernel PODE *ou nao* usar shared memory 
+         Se usar deve fica um pouco mais rapido
+         mas como a largura de PSv é relativamente pequena 
+         e altura do vetor PSv é REALMENTE pequena (== numerdo de blocos de threads)
+         temos, relativamente pouca coisa para fazer nesse kernel
+         entao ele já tem o potencial de ser bem rapido
+
+//   PartitionKernel       (explicacao adicionada na v1.1)     
+
+         Este kernel DEVE usar shared memory para ficar mais rapido
+         
+Vamos assumir que para os kernels acima, 
+CADA histograma produzido (global, ou por bloco)  CABE na shared memory.
+Para quando os histogramas NAO cabem em shared memory seria necessario um OUTRO
+kernel (ou outros, dependendo de implementacao) 
+esse kernel entao precisaria computar na global memory 
+e seria um pouco (muito?) mais lento.        
+Se voce quer fazer esse extra está ok, 
+neste caso documente os mesmos e inclua também as medidas desses.
+Caso faça, coloque o nome de globaHistoAndScan_gm (para indicar 
+que ele trabalha diretamente
+na global memory SEM usar shared)
+
+//    Relatorio e experimentos    (explicacao adicionada na v1.1)     
+      -------------------------
+//
+//    - Voce deve entregar um relatorio em PDF
+//      Descreva o melhor que puder o trabalho
+//      tente explicar o funcionamento
+//    - Inclua uma tabela de vazao de ordenaçao
+//      comparando a ordenacao com 
+//      o mppSort e com o thrust sort rodando sozinho
+//      em todo o vetor de entrada
+//      indique na tabela a aceleracao de mppSort
+//      em relacao ao thrust 
+//    - Experimentos:
+//      faca medidas para 1M, 2M, 4M e 8M elementos (no minimo)
+//      obs M = 10^6 (NAO FACA potencias de 2)
+//    - Reporte a vazao em GElementos/s ordenados 
+//    - NAO precisa graficos, somente TABELA
+
