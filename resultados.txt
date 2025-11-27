@@ -1,0 +1,90 @@
+=== Iniciando Experimentos do Trabalho 3 ===
+Data: qua 26 nov 2025 22:21:24 -03
+Máquina: orval
+============================================
+
+>>> Fase 1: Compilação
+Compilando Parte A (Segmented Bitonic Sort)...
+Parte A compilada com sucesso.
+Compilando Parte B (mppSort)...
+Parte B compilada com sucesso.
+
+>>> Fase 2: Experimentos Parte A (Segmented Bitonic Sort)
+Comparando desempenho com Thrust para diferentes configurações de segmentos.
+Usando binário: ./segmented-sort-bitonic-1024
+--- Teste A.1: 8M elementos, segmentos entre 20 e 4000 ---
+Number of segments Generated:4008
+Segmented Bitonic Sort (Out-of-Place):
+Time taken: 0.0533044 seconds
+Throughput: 0.150081 GEls/s
+Thrust Sort:
+Time taken: 0.0170697 seconds
+Throughput: 0.468667 GEls/s
+Speedup (Thrust time / segmented-bitonic time): 0.32023x
+Verification (Bitonic Out-of-Place): All segments sorted correctly.
+Verification (Thrust): Entire array sorted correctly.
+
+--- Teste A.2: 8M elementos, segmentos entre 3000 e 4000 ---
+Number of segments Generated:2283
+Segmented Bitonic Sort (Out-of-Place):
+Time taken: 0.045744 seconds
+Throughput: 0.174886 GEls/s
+Thrust Sort:
+Time taken: 0.0170516 seconds
+Throughput: 0.469164 GEls/s
+Speedup (Thrust time / segmented-bitonic time): 0.372762x
+Verification (Bitonic Out-of-Place): All segments sorted correctly.
+Verification (Thrust): Entire array sorted correctly.
+
+--- Teste A.3: 8M elementos, segmentos entre 20 e 8000 ---
+Number of segments Generated:1996
+Segmented Bitonic Sort (Out-of-Place):
+Time taken: 0.0557182 seconds
+Throughput: 0.14358 GEls/s
+Thrust Sort:
+Time taken: 0.0169795 seconds
+Throughput: 0.471158 GEls/s
+Speedup (Thrust time / segmented-bitonic time): 0.304738x
+Verification (Bitonic Out-of-Place): All segments sorted correctly.
+Verification (Thrust): Entire array sorted correctly.
+
+
+>>> Fase 3: Experimentos Parte B (mppSort Integrado)
+Executando mppSort para 1M, 2M, 4M e 8M elementos.
+--- Teste B.1: 1M Elementos (h=512) ---
+n=1000000, h=512, nR=10
+mppSort Time: 6.807 ms
+Throughput: 0.147 GEls/s
+Verification: PASS
+Thrust Time: 3.696 ms
+Thrust Throughput: 0.271 GEls/s
+Speedup: 0.54x
+
+--- Teste B.2: 2M Elementos (h=1024) ---
+n=2000000, h=1024, nR=10
+mppSort Time: 13.598 ms
+Throughput: 0.147 GEls/s
+Verification: PASS
+Thrust Time: 6.575 ms
+Thrust Throughput: 0.304 GEls/s
+Speedup: 0.48x
+
+--- Teste B.3: 4M Elementos (h=2048) ---
+n=4000000, h=2048, nR=10
+mppSort Time: 26.100 ms
+Throughput: 0.153 GEls/s
+Verification: PASS
+Thrust Time: 12.773 ms
+Thrust Throughput: 0.313 GEls/s
+Speedup: 0.49x
+
+--- Teste B.4: 8M Elementos (h=4096) ---
+n=8000000, h=4096, nR=10
+mppSort Time: 52.889 ms
+Throughput: 0.151 GEls/s
+Verification: PASS
+Thrust Time: 26.142 ms
+Thrust Throughput: 0.306 GEls/s
+Speedup: 0.49x
+
+=== Experimentos Concluídos ===
