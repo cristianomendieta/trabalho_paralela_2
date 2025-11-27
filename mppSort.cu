@@ -131,7 +131,11 @@ __global__ void blockAndGlobalHisto(uint* HH, uint* Hg, int h,
 __global__ void globalHistoScan(uint* Hg, uint* SHg, int h) {
     extern __shared__ uint s_data[];
     int tid = threadIdx.x;
-    if (tid < h) s_data[tid] = Hg[tid];
+    
+    // Grid-stride loop for loading shared memory
+    for (int i = tid; i < h; i += blockDim.x) {
+        s_data[i] = Hg[i];
+    }
     __syncthreads();
     
     if (tid == 0) {
@@ -259,7 +263,7 @@ int main(int argc, char** argv) {
         CUDA_CHECK(cudaMemset(d_PSv, 0, nb * h * sizeof(uint)));
         
         blockAndGlobalHisto<<<nb, nt, h * sizeof(uint)>>>(d_HH, d_Hg, h, d_Input, nTotalElements, nMin, nMax);
-        globalHistoScan<<<1, 1, h * sizeof(uint)>>>(d_Hg, d_SHg, h); 
+        globalHistoScan<<<1, 1024, h * sizeof(uint)>>>(d_Hg, d_SHg, h); 
         verticalScanHH<<<h, 32>>>(d_HH, d_PSv, h, nb); 
         PartitionKernel<<<nb, nt, 2 * h * sizeof(uint)>>>(d_HH, d_SHg, d_PSv, h, d_Input, d_Output, nTotalElements, nMin, nMax, nb);
         
