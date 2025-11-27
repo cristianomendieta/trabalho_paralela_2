@@ -107,7 +107,9 @@ __global__ void blockAndGlobalHisto(uint* HH, uint* Hg, int h,
     uint L = (nMax - nMin) / h;
     if (L == 0) L = 1;
     
-    if (threadIdx.x < h) s_histo[threadIdx.x] = 0;
+    for (int i = threadIdx.x; i < h; i += blockDim.x) {
+        s_histo[i] = 0;
+    }
     __syncthreads();
     
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -121,10 +123,10 @@ __global__ void blockAndGlobalHisto(uint* HH, uint* Hg, int h,
     }
     __syncthreads();
     
-    if (threadIdx.x < h) {
-        uint count = s_histo[threadIdx.x];
-        HH[blockIdx.x * h + threadIdx.x] = count;
-        atomicAdd(&Hg[threadIdx.x], count);
+    for (int i = threadIdx.x; i < h; i += blockDim.x) {
+        uint count = s_histo[i];
+        HH[blockIdx.x * h + i] = count;
+        atomicAdd(&Hg[i], count);
     }
 }
 
