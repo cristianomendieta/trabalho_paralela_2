@@ -264,7 +264,7 @@ int main(int argc, char** argv) {
         PartitionKernel<<<nb, nt, 2 * h * sizeof(uint)>>>(d_HH, d_SHg, d_PSv, h, d_Input, d_Output, nTotalElements, nMin, nMax, nb);
         
         // Segmented Sort
-        segmentedBitonicSortKernel<<<h, 1024, 48 * 1024>>>(d_Output, d_Output, d_SHg, d_Hg, 0);
+        segmentedBitonicSortKernel<<<h, 1024, 48 * 1024>>>(d_Output, d_Output, d_SHg, d_Hg, 1);
     }
     CUDA_CHECK(cudaEventRecord(stop));
     CUDA_CHECK(cudaEventSynchronize(stop));
